@@ -35,6 +35,26 @@ Storage rules:
 - Tabs, newlines, and backslashes inside field values are escaped
 - Files remain grep-friendly and human-readable
 
+## Recording contract
+
+`hy record` is the single entry point that shell hooks should call.
+
+Required inputs:
+
+- `--cwd <path>`: the working directory where the command ran
+- `--command <text>`: the raw command text from shell history
+
+Optional inputs:
+
+- `--history-id <id>`: a shell-provided history event identifier used only for duplicate suppression
+- `--shell <bash|zsh>`: identifies the caller for diagnostics and shell-specific behavior
+
+Contract notes:
+
+- The searchable log file stores only timestamp, cwd, and command.
+- Duplicate suppression metadata should live in a separate hidden text state file, not in the searchable log line.
+- Relative and shell-expanded paths should be resolved before being written to disk.
+
 ## Design notes
 
 - A shell hook is still required because the shell is the component that knows which command just ran.
@@ -45,4 +65,3 @@ Storage rules:
 ## Development status
 
 This repository is currently in the planning stage. See `tasks.md` for the working task breakdown and `LESSONS.md` for decisions and implementation notes that should persist across tasks.
-

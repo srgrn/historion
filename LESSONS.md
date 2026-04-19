@@ -25,6 +25,13 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Exact folder matching depends on adopting the structured escaped-TSV format.
 - Legacy logs should be treated as migration input with best-effort parsing only.
 
+## Record contract
+
+- The searchable log line stores exactly three escaped-TSV fields: timestamp, cwd, and command.
+- `history_id` is useful for duplicate suppression, but it should not be written into the searchable log line.
+- Duplicate suppression state can live in a separate hidden text file inside the log directory.
+- `hy record` should reject missing `--cwd` and empty `--command` values before touching the filesystem.
+
 ## Search semantics
 
 - `hy <query>` should search command text by substring in v1.
