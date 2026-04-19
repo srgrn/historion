@@ -48,6 +48,9 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Search results should come back newest first by file date and then reverse line order within each file.
 - Default rendered output should stay one escaped-TSV line per match so it remains easy to pipe or grep.
 - Folder resolution should be lexical normalization only; do not canonicalize against the filesystem because the logged shell path may intentionally preserve symlinks.
+- `--today` and `--since` should filter by the daily log filename date first, not by re-parsing every entry timestamp.
+- `--json` output can be rendered without dependencies as a compact array of objects including source file and line metadata.
+- Search should fail fast when the user provides neither a query nor a folder filter.
 
 ## Scope guardrails
 
