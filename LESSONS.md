@@ -24,6 +24,8 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - The original space-delimited format is ambiguous when paths or commands contain spaces.
 - Exact folder matching depends on adopting the structured escaped-TSV format.
 - Legacy logs should be treated as migration input with best-effort parsing only.
+- The legacy parser currently looks for the shell history number boundary after an absolute-looking `pwd` path, which is good enough for migration but not exact.
+- Structured lines should fail fast on malformed field counts or broken escape sequences instead of guessing.
 
 ## Record contract
 
