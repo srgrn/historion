@@ -1,165 +1,64 @@
-name: Release
+name: build and release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+  release:
+    types: [ created ]
 
 permissions:
   contents: write
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  ensure-release:
-    name: Ensure GitHub release exists
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v6
-
-      - name: Create release if needed
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 || \
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            --verify-tag
-
-  build-and-upload:
-    name: Build and upload (${{ matrix.platform }})
-    needs: ensure-release
-    runs-on: ${{ matrix.os }}
+  build:
+    name: ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-            binary_name: hy
-            archive_name: hy-${{ github.ref_name }}-linux-x86_64.tar.gz
-          # - os: windows-latest
-          #   platform: windows-x86_64
-          #   binary_name: hy.exe
-          #   archive_name: hy-${{ github.ref_name }}-windows-x86_64.zip
-          - os: macos-13
-            platform: macos-x86_64
-            binary_name: hy
-            archive_name: hy-${{ github.ref_name }}-macos-x86_64.tar.gz
-
+        platform:
+          - os_name: Linux-aarch64
+            os: ubuntu-20.04
+            target: aarch64-unknown-linux-musl
+            bin: hy-linux-arm64
+          - os_name: Linux-x86_64
+            os: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            bin: hy-linux-amd64
+        #   - os_name: Windows-x86_64
+        #     os: windows-latest
+        #     target: x86_64-pc-windows-msvc
+        #     bin: hy-amd64.exe
+          - os_name: macOS-x86_64
+            os: macOS-latest
+            target: x86_64-apple-darwin
+            bin: hy-darwin-amd64
+          - os_name: macOS-aarch64
+            os: macOS-latest
+            target: aarch64-apple-darwin
+            bin: hy-darwin-arm64
+        toolchain:
+          - stable
     steps:
-      - name: Check out source
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v6
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
         with:
-          python-version: "3.x"
-
-      - name: Derive release version from tag
-        id: version
-        shell: bash
-        run: |
-          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Update Cargo version to match tag
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          python <<'PY'
-          import os
-          from pathlib import Path
-
-          version = os.environ["RELEASE_VERSION"]
-
-          cargo_toml_path = Path("Cargo.toml")
-          cargo_toml_lines = cargo_toml_path.read_text().splitlines()
-          in_package = False
-          updated_toml = False
-
-          for index, line in enumerate(cargo_toml_lines):
-              if line == "[package]":
-                  in_package = True
-                  continue
-              if in_package and line.startswith("["):
-                  in_package = False
-              if in_package and line.startswith("version = "):
-                  cargo_toml_lines[index] = f'version = "{version}"'
-                  updated_toml = True
-                  break
-
-          if not updated_toml:
-              raise SystemExit("Could not locate package version in Cargo.toml")
-
-          cargo_toml_path.write_text("\n".join(cargo_toml_lines) + "\n")
-
-          cargo_lock_path = Path("Cargo.lock")
-          cargo_lock_lines = cargo_lock_path.read_text().splitlines()
-          in_historion_package = False
-          updated_lock = False
-
-          for index, line in enumerate(cargo_lock_lines):
-              if line == "[[package]]":
-                  in_historion_package = False
-                  continue
-              if line == 'name = "historion"':
-                  in_historion_package = True
-                  continue
-              if in_historion_package and line.startswith("version = "):
-                  cargo_lock_lines[index] = f'version = "{version}"'
-                  updated_lock = True
-                  break
-
-          if not updated_lock:
-              raise SystemExit("Could not locate historion package version in Cargo.lock")
-
-          cargo_lock_path.write_text("\n".join(cargo_lock_lines) + "\n")
-          PY
-
-      - name: Show Rust toolchain
-        run: rustc --version && cargo --version
-
-      - name: Build release binary
-        run: cargo build --release --locked
-
-      - name: Package release asset
-        id: package
-        shell: pwsh
-        env:
-          ARCHIVE_NAME: ${{ matrix.archive_name }}
-          BINARY_NAME: ${{ matrix.binary_name }}
-        run: |
-          $dist = Join-Path $PWD 'dist'
-          New-Item -ItemType Directory -Force -Path $dist | Out-Null
-
-          $binaryPath = Join-Path $PWD "target/release/$env:BINARY_NAME"
-          if (-not (Test-Path $binaryPath)) {
-            throw "Built binary not found at $binaryPath"
-          }
-
-          $stagedBinary = Join-Path $dist $env:BINARY_NAME
-          Copy-Item $binaryPath $stagedBinary -Force
-
-          $archivePath = Join-Path $dist $env:ARCHIVE_NAME
-          if ($env:ARCHIVE_NAME.EndsWith('.zip')) {
-            Compress-Archive -Path $stagedBinary -DestinationPath $archivePath -Force
-          } else {
-            tar -czf $archivePath -C $dist $env:BINARY_NAME
-          }
-
-          "archive_path=$archivePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Upload asset to GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
-          ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
-        run: gh release upload "$TAG" "$ARCHIVE_PATH" --clobber
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
+          args: "--locked --release"
+          strip: true
+      - name: Rename binary (linux and macos)
+        run: mv target/${{ matrix.platform.target }}/release/hy target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}
+        if: matrix.platform.os_name != 'Windows-x86_64'
+      - name: Rename binary (windows)
+        run: mv target/${{ matrix.platform.target }}/release/hy.exe target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}
+        if: matrix.platform.os_name == 'Windows-x86_64'
+      - name: Generate SHA-256
+        run: shasum -a 256 target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} | cut -d ' ' -f 1 > target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}.sha256
+      - name: Release binary and SHA-256 checksum to GitHub
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}
+            target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}.sha256
