@@ -194,7 +194,11 @@ fn matches_query(entry: &HistoryEntry, query: Option<&str>, ignore_case: bool) -
 
 fn matches_folder(entry: &HistoryEntry, folder: Option<&str>, ignore_case: bool) -> bool {
     match folder {
-        Some(folder) => contains_text(&entry.cwd.to_string_lossy(), folder, ignore_case),
+        Some(folder) => contains_text(
+            &normalize_search_path(&entry.cwd.to_string_lossy()),
+            &normalize_search_path(folder),
+            ignore_case,
+        ),
         None => true,
     }
 }
@@ -211,16 +215,18 @@ pub fn resolve_folder_filter(folder: Option<&Path>, cwd: &Path) -> Option<String
     folder.map(|folder| {
         if is_path_like(folder) {
             if folder.is_absolute() {
-                normalize_path(folder).to_string_lossy().into_owned()
+                normalize_search_path(&normalize_path(folder).to_string_lossy())
             } else {
-                normalize_path(&cwd.join(folder))
-                    .to_string_lossy()
-                    .into_owned()
+                normalize_search_path(&normalize_path(&cwd.join(folder)).to_string_lossy())
             }
         } else {
-            folder.to_string_lossy().into_owned()
+            normalize_search_path(&folder.to_string_lossy())
         }
     })
+}
+
+fn normalize_search_path(value: &str) -> String {
+    value.replace('\\', "/")
 }
 
 fn is_path_like(path: &Path) -> bool {
@@ -393,8 +399,8 @@ fn civil_from_days(days: i64) -> (i32, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::{
-        IGNORE_CASE_ENV_VAR, SearchArgs, parse_env_flag, resolve_folder_filter, search_logs,
-        search_logs_with_today, shift_date,
+        IGNORE_CASE_ENV_VAR, SearchArgs, normalize_search_path, parse_env_flag,
+        resolve_folder_filter, search_logs, search_logs_with_today, shift_date,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -666,6 +672,18 @@ mod tests {
         assert_eq!(
             resolve_folder_filter(Some(Path::new("src")), Path::new("/work/project")),
             Some(String::from("src"))
+        );
+    }
+
+    #[test]
+    fn normalize_search_path_uses_forward_slashes() {
+        assert_eq!(
+            normalize_search_path(r"\work\project\src"),
+            "/work/project/src"
+        );
+        assert_eq!(
+            normalize_search_path(r"C:\Users\eran\project"),
+            "C:/Users/eran/project"
         );
     }
 
