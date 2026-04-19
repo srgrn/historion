@@ -1,67 +1,134 @@
 # hy
 
-`hy` is a planned Rust CLI for recording and searching shell command history stored in plain text log files.
+`hy` is a small Rust CLI for recording and searching shell history in plain text log files under `~/.logs/`.
 
-The goal is to keep the logs simple enough for `grep`, `awk`, or manual inspection, while providing a better interactive search tool for day-to-day use.
+It is meant to replace ad-hoc `precmd` or `PROMPT_COMMAND` snippets with a stable `hy`-managed hook while keeping the history files easy to inspect with `grep`, `awk`, or `sed`.
 
-## Goals
+## Features
 
-- Keep history in text files under `~/.logs/`
-- Support fast direct search without requiring a database in v1
-- Replace custom per-machine shell snippets with a standard `hy` integration flow
-- Preserve enough structure for reliable filtering by command text and working directory
+- Records shell commands into daily text files such as `~/.logs/bash-history-2026-04-19.log`
+- Searches command text with `hy <query>`
+- Filters by working directory tree with `hy --folder <path>`
+- Supports `--today`, `--since <days>`, `--limit <n>`, and `--json`
+- Installs managed shell hooks with `hy install bash` or `hy install zsh`
+- Reads the newer escaped-TSV format exactly and older space-delimited logs on a best-effort basis
 
-## Planned commands
+## Install
 
-- `hy record`: append the latest shell command to the daily log file
-- `hy <query>`: search command text
-- `hy --folder <path>`: filter results by working directory
-- `hy init zsh|bash`: print the minimal shell hook
-- `hy install zsh|bash`: install the managed shell hook
+Build locally:
 
-## Log format
-
-The preferred format is plain text with escaped tab-separated fields:
-
-```text
-2026-04-19T10:23:45+01:00	/home/zimbl/project	cargo test --lib
-2026-04-19T10:25:02+01:00	/home/zimbl/project/src	rg history
+```bash
+cargo build
 ```
 
-Storage rules:
+Install into Cargo's bin directory:
 
-- One entry per line
-- Three logical fields: timestamp, current working directory, command
-- Tabs, newlines, and backslashes inside field values are escaped
-- Files remain grep-friendly and human-readable
+```bash
+cargo install --path .
+```
 
-## Recording contract
+If you do not want `hy` on your `PATH`, set `HY_BIN` in your shell before loading the hook:
 
-`hy record` is the single entry point that shell hooks should call.
+```bash
+export HY_BIN="$HOME/.cargo/bin/hy"
+```
 
-Required inputs:
+## Shell Setup
 
-- `--cwd <path>`: the working directory where the command ran
-- `--command <text>`: the raw command text from shell history
+Preview the generated hook:
 
-Optional inputs:
+```bash
+hy init zsh
+hy init bash
+```
 
-- `--history-id <id>`: a shell-provided history event identifier used only for duplicate suppression
-- `--shell <bash|zsh>`: identifies the caller for diagnostics and shell-specific behavior
+Install the managed hook into your rc file:
 
-Contract notes:
+```bash
+hy install zsh
+hy install bash
+```
 
-- The searchable log file stores only timestamp, cwd, and command.
-- Duplicate suppression metadata should live in a separate hidden text state file, not in the searchable log line.
-- Relative and shell-expanded paths should be resolved before being written to disk.
+`hy install` writes a marked block into `~/.zshrc` or `~/.bashrc` and updates that same block if you run it again. It does not need the old inline history snippet.
 
-## Design notes
+## Usage
 
-- A shell hook is still required because the shell is the component that knows which command just ran.
-- The hook should be minimal and call `hy record` rather than containing logging logic inline.
-- Legacy space-delimited history logs should be supported on a best-effort basis for migration.
-- Folder filtering should treat `--folder .` as the current directory tree.
+Search for commands containing a word:
 
-## Development status
+```bash
+hy cargo
+```
 
-This repository is currently in the planning stage. See `tasks.md` for the working task breakdown and `LESSONS.md` for decisions and implementation notes that should persist across tasks.
+Search only within the current directory tree:
+
+```bash
+hy --folder .
+```
+
+Combine text search and folder filtering:
+
+```bash
+hy cargo --folder .
+```
+
+Limit to recent logs:
+
+```bash
+hy cargo --today
+hy cargo --since 7
+```
+
+Get machine-readable output:
+
+```bash
+hy cargo --json
+```
+
+`record` is meant for shell hooks, but it can also be called directly:
+
+```bash
+hy record --cwd "$PWD" --command "cargo test" --history-id 42 --shell zsh
+```
+
+## Log Format
+
+`hy` stores one escaped-TSV record per line:
+
+```text
+2026-04-19T10:23:45+0100	/home/zimbl/project	cargo test --lib
+2026-04-19T10:25:02+0100	/home/zimbl/project/src	rg history
+```
+
+Rules:
+
+- Field order is `timestamp<TAB>cwd<TAB>command`
+- Tabs, newlines, and backslashes inside values are escaped
+- Files stay readable and grep-friendly
+- Duplicate suppression metadata is kept in a separate hidden state file, not inside the searchable log line
+
+You can still use plain shell tools directly:
+
+```bash
+grep cargo ~/.logs/bash-history-*.log
+```
+
+## Migration From Old Snippets
+
+If you previously had a custom `precmd` or `PROMPT_COMMAND` snippet that wrote directly to `~/.logs`, the migration path is:
+
+1. Remove the old shell snippet from your rc file.
+2. Install `hy`.
+3. Run `hy install zsh` or `hy install bash`.
+4. Reload your shell.
+
+Old space-delimited log files are still searchable, but only on a best-effort basis because the original format is ambiguous when paths or commands contain spaces. New `hy`-written logs use the structured escaped-TSV format and are parsed exactly.
+
+## Development
+
+Run the full test suite:
+
+```bash
+cargo test
+```
+
+The repository also keeps a `LESSONS.md` file with implementation decisions and gotchas that should persist across future tasks.

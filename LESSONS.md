@@ -67,6 +67,6 @@ This file is a shared memory for implementation tasks. It should capture stable 
 ## Repository notes
 
 - `tasks.md` is intentionally local-only and must not be committed.
-- `README.md` should describe public behavior and setup.
+- `README.md` should describe shipped behavior and setup, not stale planning notes.
 - `LESSONS.md` should record decisions that future tasks should not rediscover.
 - Keep the crate split into `lib.rs` plus a thin `main.rs` so command parsing and behavior remain easy to unit test.
