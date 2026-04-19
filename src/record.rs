@@ -47,6 +47,7 @@ impl RecordArgs {
         let cwd = self
             .cwd
             .ok_or_else(|| String::from("record requires --cwd"))?;
+        let cwd = cwd.canonicalize().unwrap_or(cwd);
         let command = self
             .command
             .filter(|value| !value.trim().is_empty())
