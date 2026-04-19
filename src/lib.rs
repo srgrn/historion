@@ -45,7 +45,8 @@ where
             record::execute(args)?;
             Ok(())
         }
-        cli::Command::Search(_) | cli::Command::Init(_) | cli::Command::Install(_) => {
+        cli::Command::Search(args) => search::execute(args, stdout),
+        cli::Command::Init(_) | cli::Command::Install(_) => {
             stderr
                 .write_all(b"command is scaffolded but not implemented yet\n")
                 .map_err(|err| err.to_string())?;
@@ -72,11 +73,11 @@ mod tests {
     }
 
     #[test]
-    fn run_search_is_scaffolded() {
+    fn run_install_is_scaffolded() {
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
 
-        let result = run(["hy", "needle"], &mut stdout, &mut stderr);
+        let result = run(["hy", "install", "bash"], &mut stdout, &mut stderr);
 
         assert_eq!(result, Err(String::from("not implemented")));
         assert!(stdout.is_empty());

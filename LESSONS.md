@@ -42,6 +42,9 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - `hy --folder <path>` should resolve relative paths from the caller's current working directory.
 - Folder matches should be recursive prefix matches by default.
 - `hy --folder .` should mean "current directory and descendants".
+- Search currently skips malformed log lines instead of failing the whole command.
+- Search results should come back newest first by file date and then reverse line order within each file.
+- Default rendered output should stay one escaped-TSV line per match so it remains easy to pipe or grep.
 
 ## Scope guardrails
 
