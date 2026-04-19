@@ -45,6 +45,7 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Search currently skips malformed log lines instead of failing the whole command.
 - Search results should come back newest first by file date and then reverse line order within each file.
 - Default rendered output should stay one escaped-TSV line per match so it remains easy to pipe or grep.
+- Folder resolution should be lexical normalization only; do not canonicalize against the filesystem because the logged shell path may intentionally preserve symlinks.
 
 ## Scope guardrails
 

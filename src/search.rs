@@ -4,7 +4,7 @@ use crate::parser;
 use crate::record::{LOG_FILE_PREFIX, LOG_FILE_SUFFIX, default_log_dir};
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchArgs {
@@ -27,14 +27,19 @@ pub fn execute(args: SearchArgs, stdout: &mut dyn Write) -> Result<(), String> {
         .map(PathBuf::from)
         .ok_or_else(|| String::from("HOME is not set"))?;
     let log_dir = default_log_dir(&home_dir);
-    let entries = search_logs(&log_dir, &args)?;
+    let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
+    let entries = search_logs(&log_dir, &args, &cwd)?;
 
     stdout
         .write_all(output::render_entries(&entries).as_bytes())
         .map_err(|err| err.to_string())
 }
 
-pub fn search_logs(log_dir: &Path, args: &SearchArgs) -> Result<Vec<HistoryEntry>, String> {
+pub fn search_logs(
+    log_dir: &Path,
+    args: &SearchArgs,
+    cwd: &Path,
+) -> Result<Vec<HistoryEntry>, String> {
     let limit = args.limit.unwrap_or(usize::MAX);
     let mut files = list_log_files(log_dir)?;
     files.sort();
@@ -42,6 +47,7 @@ pub fn search_logs(log_dir: &Path, args: &SearchArgs) -> Result<Vec<HistoryEntry
 
     let mut matches = Vec::new();
     let query = args.query.as_deref();
+    let folder = resolve_folder_filter(args.folder.as_deref(), cwd);
 
     for file in files {
         let mut file_matches = Vec::new();
@@ -56,7 +62,7 @@ pub fn search_logs(log_dir: &Path, args: &SearchArgs) -> Result<Vec<HistoryEntry
                 continue;
             };
 
-            if matches_query(&entry, query) {
+            if matches_query(&entry, query) && matches_folder(&entry, folder.as_deref()) {
                 file_matches.push(entry);
             }
         }
@@ -103,9 +109,50 @@ fn matches_query(entry: &HistoryEntry, query: Option<&str>) -> bool {
     }
 }
 
+fn matches_folder(entry: &HistoryEntry, folder: Option<&Path>) -> bool {
+    match folder {
+        Some(folder) => entry.cwd.starts_with(folder),
+        None => true,
+    }
+}
+
+pub fn resolve_folder_filter(folder: Option<&Path>, cwd: &Path) -> Option<PathBuf> {
+    folder.map(|folder| {
+        if folder.is_absolute() {
+            normalize_path(folder)
+        } else {
+            normalize_path(&cwd.join(folder))
+        }
+    })
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    normalized.push(component.as_os_str());
+                }
+            }
+            Component::Normal(value) => normalized.push(value),
+        }
+    }
+
+    if normalized.as_os_str().is_empty() {
+        PathBuf::from(".")
+    } else {
+        normalized
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{SearchArgs, search_logs};
+    use super::{SearchArgs, resolve_folder_filter, search_logs};
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -136,6 +183,7 @@ mod tests {
                 limit: None,
                 json: false,
             },
+            Path::new("/work"),
         )
         .expect("search should succeed");
 
@@ -167,6 +215,7 @@ mod tests {
                 limit: Some(1),
                 json: false,
             },
+            Path::new("/work"),
         )
         .expect("search should succeed");
 
@@ -197,6 +246,7 @@ mod tests {
                 limit: None,
                 json: false,
             },
+            Path::new("/work"),
         )
         .expect("search should succeed");
 
@@ -204,6 +254,54 @@ mod tests {
         assert_eq!(entries[0].command, "cargo test --lib");
 
         cleanup(&temp_dir);
+    }
+
+    #[test]
+    fn search_logs_filter_by_folder_prefix() {
+        let temp_dir = make_temp_dir("search-folder");
+        let log_dir = temp_dir.join(".logs");
+        fs::create_dir_all(&log_dir).expect("log dir should exist");
+        fs::write(
+            log_dir.join("bash-history-2026-04-19.log"),
+            "2026-04-19T09:00:00+0100\t/work/project\tcargo check\n2026-04-19T10:00:00+0100\t/work/project/src\trustc main.rs\n2026-04-19T11:00:00+0100\t/work/other\tcargo test\n",
+        )
+        .expect("log should be written");
+
+        let entries = search_logs(
+            &log_dir,
+            &SearchArgs {
+                query: None,
+                folder: Some(PathBuf::from(".")),
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+            },
+            Path::new("/work/project"),
+        )
+        .expect("search should succeed");
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].cwd, PathBuf::from("/work/project/src"));
+        assert_eq!(entries[1].cwd, PathBuf::from("/work/project"));
+
+        cleanup(&temp_dir);
+    }
+
+    #[test]
+    fn resolve_folder_filter_expands_relative_paths() {
+        assert_eq!(
+            resolve_folder_filter(Some(Path::new(".")), Path::new("/work/project")),
+            Some(PathBuf::from("/work/project"))
+        );
+        assert_eq!(
+            resolve_folder_filter(Some(Path::new("src/../tests")), Path::new("/work/project")),
+            Some(PathBuf::from("/work/project/tests"))
+        );
+        assert_eq!(
+            resolve_folder_filter(Some(Path::new("/tmp/demo")), Path::new("/work/project")),
+            Some(PathBuf::from("/tmp/demo"))
+        );
     }
 
     fn make_temp_dir(label: &str) -> PathBuf {

@@ -39,12 +39,15 @@ where
         "record" => parse_record(args.collect()),
         "init" => parse_init(args.collect()),
         "install" => parse_install(args.collect()),
-        _ => parse_search(first, args.collect()),
+        value if value.starts_with("--") => {
+            parse_search(None, std::iter::once(first).chain(args).collect())
+        }
+        _ => parse_search(Some(first), args.collect()),
     }
 }
 
-fn parse_search(first: String, rest: Vec<String>) -> Result<Command, String> {
-    let mut query = Some(first);
+fn parse_search(query: Option<String>, rest: Vec<String>) -> Result<Command, String> {
+    let mut query = query;
     let mut folder = None;
     let mut today = false;
     let mut since = None;
@@ -205,6 +208,40 @@ mod tests {
             Command::Search(SearchArgs {
                 query: Some(String::from("needle")),
                 folder: None,
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+            })
+        );
+    }
+
+    #[test]
+    fn parses_search_flags_without_a_query() {
+        let command = parse_args(["hy", "--folder", "."]).expect("cli should parse");
+
+        assert_eq!(
+            command,
+            Command::Search(SearchArgs {
+                query: None,
+                folder: Some(PathBuf::from(".")),
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+            })
+        );
+    }
+
+    #[test]
+    fn parses_search_query_after_folder_flag() {
+        let command = parse_args(["hy", "--folder", ".", "cargo"]).expect("cli should parse");
+
+        assert_eq!(
+            command,
+            Command::Search(SearchArgs {
+                query: Some(String::from("cargo")),
+                folder: Some(PathBuf::from(".")),
                 today: false,
                 since_days: None,
                 limit: None,
