@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const FIELD_DELIMITER: char = '\t';
 
@@ -18,13 +18,17 @@ pub struct EntrySource {
 
 impl HistoryEntry {
     pub fn format_escaped_tsv(&self) -> String {
-        format!(
-            "{}{FIELD_DELIMITER}{}{FIELD_DELIMITER}{}",
-            escape_field(&self.timestamp),
-            escape_field(&self.cwd.to_string_lossy()),
-            escape_field(&self.command)
-        )
+        format_record_line(&self.timestamp, &self.cwd, &self.command)
     }
+}
+
+pub fn format_record_line(timestamp: &str, cwd: &Path, command: &str) -> String {
+    format!(
+        "{}{FIELD_DELIMITER}{}{FIELD_DELIMITER}{}",
+        escape_field(timestamp),
+        escape_field(&cwd.to_string_lossy()),
+        escape_field(command)
+    )
 }
 
 pub fn escape_field(value: &str) -> String {
@@ -44,8 +48,8 @@ pub fn escape_field(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{EntrySource, FIELD_DELIMITER, HistoryEntry, escape_field};
-    use std::path::PathBuf;
+    use super::{EntrySource, FIELD_DELIMITER, HistoryEntry, escape_field, format_record_line};
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn escape_field_preserves_plain_text() {
@@ -78,6 +82,22 @@ mod tests {
             line,
             format!(
                 "2026-04-19T10:23:45+01:00{FIELD_DELIMITER}/tmp/project with spaces{FIELD_DELIMITER}printf 'a\\tb'\\n"
+            )
+        );
+    }
+
+    #[test]
+    fn format_record_line_matches_expected_layout() {
+        let line = format_record_line(
+            "2026-04-19T10:23:45+01:00",
+            Path::new("/tmp/demo"),
+            "cargo test",
+        );
+
+        assert_eq!(
+            line,
+            format!(
+                "2026-04-19T10:23:45+01:00{FIELD_DELIMITER}/tmp/demo{FIELD_DELIMITER}cargo test"
             )
         );
     }

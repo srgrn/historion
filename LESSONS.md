@@ -31,6 +31,8 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - `history_id` is useful for duplicate suppression, but it should not be written into the searchable log line.
 - Duplicate suppression state can live in a separate hidden text file inside the log directory.
 - `hy record` should reject missing `--cwd` and empty `--command` values before touching the filesystem.
+- If the duplicate-suppression state file is missing or corrupt, recording should continue and the state should be refreshed instead of failing.
+- The current timestamp is produced inside `hy` via the system `date` command so the shell hook does not need to supply it.
 
 ## Search semantics
 

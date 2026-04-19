@@ -41,10 +41,11 @@ where
                 .map_err(|err| err.to_string())?;
             Ok(())
         }
-        cli::Command::Search(_)
-        | cli::Command::Record(_)
-        | cli::Command::Init(_)
-        | cli::Command::Install(_) => {
+        cli::Command::Record(args) => {
+            record::execute(args)?;
+            Ok(())
+        }
+        cli::Command::Search(_) | cli::Command::Init(_) | cli::Command::Install(_) => {
             stderr
                 .write_all(b"command is scaffolded but not implemented yet\n")
                 .map_err(|err| err.to_string())?;
