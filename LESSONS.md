@@ -18,6 +18,8 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Because of that, `hy` can centralize the logic, but it still needs either:
   - a minimal shell hook that calls `hy record`, or
   - an instrumented shell mode such as `hy shell` later
+- Generated shell hooks should call `${HY_BIN:-hy}` so users can override the binary path without editing the managed block.
+- `hy install` should manage a clearly marked block inside the rc file and update it in place so reinstalling stays idempotent.
 
 ## Parsing gotcha
 

@@ -27,7 +27,7 @@ where
     }
 }
 
-pub fn run<I, T>(args: I, stdout: &mut dyn Write, stderr: &mut dyn Write) -> Result<(), String>
+pub fn run<I, T>(args: I, stdout: &mut dyn Write, _stderr: &mut dyn Write) -> Result<(), String>
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString>,
@@ -46,12 +46,8 @@ where
             Ok(())
         }
         cli::Command::Search(args) => search::execute(args, stdout),
-        cli::Command::Init(_) | cli::Command::Install(_) => {
-            stderr
-                .write_all(b"command is scaffolded but not implemented yet\n")
-                .map_err(|err| err.to_string())?;
-            Err(String::from("not implemented"))
-        }
+        cli::Command::Init(args) => shell::execute_init(args, stdout),
+        cli::Command::Install(args) => shell::execute_install(args, stdout),
     }
 }
 
@@ -73,15 +69,16 @@ mod tests {
     }
 
     #[test]
-    fn run_install_is_scaffolded() {
+    fn run_init_prints_shell_snippet() {
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
 
-        let result = run(["hy", "install", "bash"], &mut stdout, &mut stderr);
+        let result = run(["hy", "init", "bash"], &mut stdout, &mut stderr);
 
-        assert_eq!(result, Err(String::from("not implemented")));
-        assert!(stdout.is_empty());
-        let text = String::from_utf8(stderr).expect("stderr should be utf8");
-        assert!(text.contains("not implemented"));
+        assert!(result.is_ok());
+        let text = String::from_utf8(stdout).expect("stdout should be utf8");
+        assert!(text.contains("${HY_BIN:-hy}"));
+        assert!(text.contains("record --cwd"));
+        assert!(stderr.is_empty());
     }
 }
