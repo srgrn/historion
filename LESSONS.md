@@ -37,6 +37,8 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - `hy record` should reject missing `--cwd` and empty `--command` values before touching the filesystem.
 - If the duplicate-suppression state file is missing or corrupt, recording should continue and the state should be refreshed instead of failing.
 - The current timestamp is produced inside `hy` via the system `date` command so the shell hook does not need to supply it.
+- `HY_LOG_DIR` should override the log directory for both recording and searching.
+- Relative `HY_LOG_DIR` values should resolve from the user's home directory so behavior stays stable across working directories.
 
 ## Search semantics
 

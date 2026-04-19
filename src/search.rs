@@ -1,7 +1,7 @@
 use crate::entry::HistoryEntry;
 use crate::output;
 use crate::parser;
-use crate::record::{LOG_FILE_PREFIX, LOG_FILE_SUFFIX, default_log_dir};
+use crate::record::{LOG_FILE_PREFIX, LOG_FILE_SUFFIX, resolve_log_dir};
 use std::fs;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
@@ -83,7 +83,7 @@ pub fn execute(args: SearchArgs, stdout: &mut dyn Write) -> Result<(), String> {
     let home_dir = std::env::var_os("HOME")
         .map(PathBuf::from)
         .ok_or_else(|| String::from("HOME is not set"))?;
-    let log_dir = default_log_dir(&home_dir);
+    let log_dir = resolve_log_dir(&home_dir);
     let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
     let entries = search_logs(&log_dir, &args, &cwd)?;
 

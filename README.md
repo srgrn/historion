@@ -34,6 +34,12 @@ If you do not want `hy` on your `PATH`, set `HY_BIN` in your shell before loadin
 export HY_BIN="$HOME/.cargo/bin/hy"
 ```
 
+To override the log directory, set `HY_LOG_DIR`. Absolute paths are used as-is. Relative paths are resolved from your home directory.
+
+```bash
+export HY_LOG_DIR="$HOME/history-logs"
+```
+
 ## Shell Setup
 
 Preview the generated hook:
@@ -125,6 +131,8 @@ You can still use plain shell tools directly:
 ```bash
 grep cargo ~/.logs/bash-history-*.log
 ```
+
+If you use `HY_LOG_DIR`, point your shell tools there instead.
 
 ## Migration From Old Snippets
 

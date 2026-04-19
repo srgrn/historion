@@ -183,6 +183,73 @@ fn ignore_case_env_enables_case_insensitive_search() {
     cleanup(&temp_home);
 }
 
+#[test]
+fn log_dir_env_redirects_record_and_search() {
+    let temp_home = make_temp_dir("log-dir-env");
+    let project_dir = temp_home.join("project");
+    let custom_log_dir = temp_home.join("history-store");
+    fs::create_dir_all(&project_dir).expect("project dir should exist");
+
+    let record = run_hy_with_env(
+        &temp_home,
+        Some(&project_dir),
+        &[
+            "record",
+            "--cwd",
+            project_dir.to_str().expect("project path should be utf8"),
+            "--command",
+            "cargo fmt",
+            "--history-id",
+            "301",
+            "--shell",
+            "bash",
+        ],
+        &[(
+            "HY_LOG_DIR",
+            custom_log_dir.to_str().expect("log dir should be utf8"),
+        )],
+    );
+    assert!(
+        record.status.success(),
+        "record failed: {}",
+        String::from_utf8_lossy(&record.stderr)
+    );
+
+    assert!(custom_log_dir.join(".hy-record-state").exists());
+    assert!(!temp_home.join(".logs").exists());
+
+    let search = run_hy_with_env(
+        &temp_home,
+        Some(&project_dir),
+        &["cargo"],
+        &[(
+            "HY_LOG_DIR",
+            custom_log_dir.to_str().expect("log dir should be utf8"),
+        )],
+    );
+    assert!(
+        search.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&search.stderr)
+    );
+
+    let stdout = String::from_utf8(search.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("cargo fmt"));
+    assert!(
+        fs::read_dir(&custom_log_dir)
+            .expect("custom log dir should exist")
+            .any(|entry| {
+                entry
+                    .expect("directory entry should be readable")
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("bash-history-")
+            })
+    );
+
+    cleanup(&temp_home);
+}
+
 fn run_hy(home_dir: &Path, current_dir: Option<&Path>, args: &[&str]) -> Output {
     run_hy_with_env(home_dir, current_dir, args, &[])
 }

@@ -9,6 +9,7 @@ pub const LOG_DIR_NAME: &str = ".logs";
 pub const LOG_FILE_PREFIX: &str = "bash-history-";
 pub const LOG_FILE_SUFFIX: &str = ".log";
 pub const RECORD_STATE_FILE: &str = ".hy-record-state";
+pub const LOG_DIR_ENV_VAR: &str = "HY_LOG_DIR";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordArgs {
@@ -65,6 +66,23 @@ pub fn default_log_dir(home_dir: &Path) -> PathBuf {
     home_dir.join(LOG_DIR_NAME)
 }
 
+pub fn resolve_log_dir(home_dir: &Path) -> PathBuf {
+    match std::env::var_os(LOG_DIR_ENV_VAR) {
+        Some(value) => resolve_log_dir_value(home_dir, &PathBuf::from(value)),
+        None => default_log_dir(home_dir),
+    }
+}
+
+pub fn resolve_log_dir_value(home_dir: &Path, value: &Path) -> PathBuf {
+    if value.as_os_str().is_empty() {
+        default_log_dir(home_dir)
+    } else if value.is_absolute() {
+        value.to_path_buf()
+    } else {
+        home_dir.join(value)
+    }
+}
+
 pub fn daily_log_path(log_dir: &Path, date: &str) -> PathBuf {
     log_dir.join(format!("{LOG_FILE_PREFIX}{date}{LOG_FILE_SUFFIX}"))
 }
@@ -76,7 +94,7 @@ pub fn execute(args: RecordArgs) -> Result<RecordOutcome, String> {
         .map(PathBuf::from)
         .ok_or_else(|| String::from("HOME is not set"))?;
 
-    append_request(&default_log_dir(&home_dir), &request)
+    append_request(&resolve_log_dir(&home_dir), &request)
 }
 
 pub fn append_request(log_dir: &Path, request: &RecordRequest) -> Result<RecordOutcome, String> {
@@ -222,6 +240,7 @@ mod tests {
     use super::{
         LOG_DIR_NAME, LOG_FILE_PREFIX, LOG_FILE_SUFFIX, RECORD_STATE_FILE, RecordArgs,
         RecordOutcome, RecordRequest, append_request, daily_log_path, default_log_dir,
+        resolve_log_dir_value,
     };
     use crate::entry::FIELD_DELIMITER;
     use crate::shell::ShellKind;
@@ -293,6 +312,26 @@ mod tests {
             PathBuf::from(format!(
                 "/home/demo/.logs/{LOG_FILE_PREFIX}2026-04-19{LOG_FILE_SUFFIX}"
             ))
+        );
+    }
+
+    #[test]
+    fn resolve_log_dir_value_defaults_for_empty_env() {
+        assert_eq!(
+            resolve_log_dir_value(Path::new("/home/demo"), Path::new("")),
+            PathBuf::from("/home/demo/.logs")
+        );
+    }
+
+    #[test]
+    fn resolve_log_dir_value_supports_absolute_and_relative_paths() {
+        assert_eq!(
+            resolve_log_dir_value(Path::new("/home/demo"), Path::new("/tmp/hy-logs")),
+            PathBuf::from("/tmp/hy-logs")
+        );
+        assert_eq!(
+            resolve_log_dir_value(Path::new("/home/demo"), Path::new("custom-logs")),
+            PathBuf::from("/home/demo/custom-logs")
         );
     }
 
