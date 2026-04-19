@@ -59,6 +59,11 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Keep output human-readable by default.
 - Move logic into Rust and keep shell snippets as thin as possible.
 
+## Testing notes
+
+- End-to-end CLI tests should prefer spawning the built `hy` binary with a temporary `HOME` instead of mutating process-global environment variables inside the test process.
+- Record/search flow tests should cover duplicate suppression, folder-only searches, and machine-readable JSON output.
+
 ## Repository notes
 
 - `tasks.md` is intentionally local-only and must not be committed.
