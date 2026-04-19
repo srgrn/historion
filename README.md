@@ -16,16 +16,47 @@ It is meant to replace ad-hoc `precmd` or `PROMPT_COMMAND` snippets with a stabl
 
 ## Install
 
-Build locally:
+The published crate name is `historion`, but the installed command is `hy`.
+
+Install from crates.io:
+
+```bash
+cargo install historion
+```
+
+Then run:
+
+```bash
+hy --help
+```
+
+Install from the latest GitHub release:
+
+1. Open <https://github.com/srgrn/historion/releases/latest>
+2. Download the archive for your platform:
+   - `hy-<version>-linux-x86_64.tar.gz`
+   - `hy-<version>-macos-x86_64.tar.gz`
+   - `hy-<version>-windows-x86_64.zip`
+3. Extract the archive
+4. Put the `hy` binary somewhere on your `PATH`
+
+Example on Linux or macOS after extracting:
+
+```bash
+chmod +x hy
+mv hy ~/.local/bin/hy
+```
+
+Build locally from source:
 
 ```bash
 cargo build
 ```
 
-Install into Cargo's bin directory:
+Install the local checkout into Cargo's bin directory:
 
 ```bash
-cargo install --path .
+cargo install --path . --force
 ```
 
 If you do not want `hy` on your `PATH`, set `HY_BIN` in your shell before loading the hook:
