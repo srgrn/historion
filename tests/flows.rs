@@ -43,7 +43,7 @@ fn record_then_search_json_flow_works() {
 
     let stdout = String::from_utf8(search.stdout).expect("stdout should be utf8");
     assert!(stdout.contains("\"command\":\"cargo test --lib\""));
-    assert!(stdout.contains(project_dir.to_string_lossy().as_ref()));
+    assert!(stdout.contains(&normalize_for_json_path(&project_dir)));
 
     cleanup(&temp_home);
 }
@@ -287,4 +287,8 @@ fn make_temp_dir(label: &str) -> PathBuf {
 
 fn cleanup(path: &Path) {
     let _ = fs::remove_dir_all(path);
+}
+
+fn normalize_for_json_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }

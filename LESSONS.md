@@ -68,6 +68,7 @@ This file is a shared memory for implementation tasks. It should capture stable 
 
 - End-to-end CLI tests should prefer spawning the built `hy` binary with a temporary `HOME` instead of mutating process-global environment variables inside the test process.
 - Record/search flow tests should cover duplicate suppression, folder-only searches, and machine-readable JSON output.
+- When asserting JSON output that contains paths, normalize expected paths to forward slashes so Windows path separators do not cause false negatives.
 
 ## Repository notes
 
