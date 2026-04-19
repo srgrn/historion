@@ -53,6 +53,7 @@ fn parse_search(query: Option<String>, rest: Vec<String>) -> Result<Command, Str
     let mut since = None;
     let mut limit = None;
     let mut json = false;
+    let mut ignore_case = false;
 
     let mut rest = rest.into_iter();
     while let Some(arg) = rest.next() {
@@ -84,6 +85,7 @@ fn parse_search(query: Option<String>, rest: Vec<String>) -> Result<Command, Str
                         .map_err(|_| String::from("--limit expects an integer"))?,
                 );
             }
+            "-i" | "--ignore-case" => ignore_case = true,
             "--json" => json = true,
             "-h" | "--help" => return Ok(Command::Help),
             value if value.starts_with("--") => {
@@ -106,6 +108,7 @@ fn parse_search(query: Option<String>, rest: Vec<String>) -> Result<Command, Str
         since_days: since,
         limit,
         json,
+        ignore_case,
     }))
 }
 
@@ -212,6 +215,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             })
         );
     }
@@ -229,6 +233,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             })
         );
     }
@@ -246,6 +251,26 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
+            })
+        );
+    }
+
+    #[test]
+    fn parses_ignore_case_flag() {
+        let command =
+            parse_args(["hy", "--folder", ".", "--ignore-case"]).expect("cli should parse");
+
+        assert_eq!(
+            command,
+            Command::Search(SearchArgs {
+                query: None,
+                folder: Some(PathBuf::from(".")),
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+                ignore_case: true,
             })
         );
     }

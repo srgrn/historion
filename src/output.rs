@@ -2,7 +2,7 @@ use crate::entry::HistoryEntry;
 
 pub fn help_text() -> &'static str {
     r#"Usage:
-  hy <query> [--folder PATH] [--today] [--since DAYS] [--limit N] [--json]
+  hy <query> [--folder PATH] [--today] [--since DAYS] [--limit N] [--json] [-i|--ignore-case]
   hy record --cwd PATH --command COMMAND [--history-id ID] [--shell bash|zsh]
   hy init <bash|zsh>
   hy install <bash|zsh>

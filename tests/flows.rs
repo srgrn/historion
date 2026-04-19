@@ -138,12 +138,70 @@ fn folder_only_search_returns_all_commands_in_tree() {
     cleanup(&temp_home);
 }
 
+#[test]
+fn ignore_case_env_enables_case_insensitive_search() {
+    let temp_home = make_temp_dir("ignore-case-env");
+    let project_dir = temp_home.join("project");
+    fs::create_dir_all(&project_dir).expect("project dir should exist");
+
+    let record = run_hy(
+        &temp_home,
+        Some(&project_dir),
+        &[
+            "record",
+            "--cwd",
+            project_dir.to_str().expect("project path should be utf8"),
+            "--command",
+            "Cargo Test",
+            "--history-id",
+            "201",
+            "--shell",
+            "bash",
+        ],
+    );
+    assert!(
+        record.status.success(),
+        "record failed: {}",
+        String::from_utf8_lossy(&record.stderr)
+    );
+
+    let search = run_hy_with_env(
+        &temp_home,
+        Some(&project_dir),
+        &["cargo"],
+        &[("HY_IGNORE_CASE", "1")],
+    );
+    assert!(
+        search.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&search.stderr)
+    );
+
+    let stdout = String::from_utf8(search.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("Cargo Test"));
+
+    cleanup(&temp_home);
+}
+
 fn run_hy(home_dir: &Path, current_dir: Option<&Path>, args: &[&str]) -> Output {
+    run_hy_with_env(home_dir, current_dir, args, &[])
+}
+
+fn run_hy_with_env(
+    home_dir: &Path,
+    current_dir: Option<&Path>,
+    args: &[&str],
+    extra_env: &[(&str, &str)],
+) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hy"));
     command.env("HOME", home_dir);
 
     if let Some(current_dir) = current_dir {
         command.current_dir(current_dir);
+    }
+
+    for (key, value) in extra_env {
+        command.env(key, value);
     }
 
     command.args(args).output().expect("hy command should run")

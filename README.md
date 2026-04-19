@@ -10,6 +10,7 @@ It is meant to replace ad-hoc `precmd` or `PROMPT_COMMAND` snippets with a stabl
 - Searches command text with `hy <query>`
 - Filters by working directory using path expansion or partial matches with `hy --folder <path>`
 - Supports `--today`, `--since <days>`, `--limit <n>`, and `--json`
+- Supports case-insensitive search with `-i` / `--ignore-case` or `HY_IGNORE_CASE=1`
 - Installs managed shell hooks with `hy install bash` or `hy install zsh`
 - Reads the newer escaped-TSV format exactly and older space-delimited logs on a best-effort basis
 
@@ -75,6 +76,13 @@ Combine text search and folder filtering:
 
 ```bash
 hy cargo --folder .
+```
+
+Make search case-insensitive:
+
+```bash
+hy cargo --ignore-case
+HY_IGNORE_CASE=1 hy --folder src
 ```
 
 Limit to recent logs:

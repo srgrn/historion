@@ -51,6 +51,8 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - `--today` and `--since` should filter by the daily log filename date first, not by re-parsing every entry timestamp.
 - `--json` output can be rendered without dependencies as a compact array of objects including source file and line metadata.
 - Search should fail fast when the user provides neither a query nor a folder filter.
+- Case-insensitive search should apply to both command text and folder filters.
+- `HY_IGNORE_CASE` should accept `1/0`, `true/false`, `yes/no`, and `on/off`.
 
 ## Scope guardrails
 

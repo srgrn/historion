@@ -7,6 +7,8 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
+pub const IGNORE_CASE_ENV_VAR: &str = "HY_IGNORE_CASE";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchArgs {
     pub query: Option<String>,
@@ -15,6 +17,7 @@ pub struct SearchArgs {
     pub since_days: Option<u32>,
     pub limit: Option<usize>,
     pub json: bool,
+    pub ignore_case: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +26,7 @@ struct ResolvedSearch {
     folder: Option<String>,
     earliest_date: Option<String>,
     latest_date: Option<String>,
+    ignore_case: bool,
 }
 
 impl ResolvedSearch {
@@ -49,6 +53,7 @@ impl ResolvedSearch {
             folder,
             earliest_date,
             latest_date,
+            ignore_case: args.ignore_case,
         })
     }
 
@@ -74,6 +79,7 @@ impl ResolvedSearch {
 }
 
 pub fn execute(args: SearchArgs, stdout: &mut dyn Write) -> Result<(), String> {
+    let args = args.with_env()?;
     let home_dir = std::env::var_os("HOME")
         .map(PathBuf::from)
         .ok_or_else(|| String::from("HOME is not set"))?;
@@ -137,8 +143,8 @@ pub fn search_logs_with_today(
                 continue;
             };
 
-            if matches_query(&entry, plan.query.as_deref())
-                && matches_folder(&entry, plan.folder.as_deref())
+            if matches_query(&entry, plan.query.as_deref(), plan.ignore_case)
+                && matches_folder(&entry, plan.folder.as_deref(), plan.ignore_case)
             {
                 file_matches.push(entry);
             }
@@ -179,17 +185,25 @@ fn list_log_files(log_dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-fn matches_query(entry: &HistoryEntry, query: Option<&str>) -> bool {
+fn matches_query(entry: &HistoryEntry, query: Option<&str>, ignore_case: bool) -> bool {
     match query {
-        Some(query) => entry.command.contains(query),
+        Some(query) => contains_text(&entry.command, query, ignore_case),
         None => true,
     }
 }
 
-fn matches_folder(entry: &HistoryEntry, folder: Option<&str>) -> bool {
+fn matches_folder(entry: &HistoryEntry, folder: Option<&str>, ignore_case: bool) -> bool {
     match folder {
-        Some(folder) => entry.cwd.to_string_lossy().contains(folder),
+        Some(folder) => contains_text(&entry.cwd.to_string_lossy(), folder, ignore_case),
         None => true,
+    }
+}
+
+fn contains_text(haystack: &str, needle: &str, ignore_case: bool) -> bool {
+    if ignore_case {
+        haystack.to_lowercase().contains(&needle.to_lowercase())
+    } else {
+        haystack.contains(needle)
     }
 }
 
@@ -264,6 +278,40 @@ fn current_date() -> Result<String, String> {
     }
 
     Ok(date)
+}
+
+impl SearchArgs {
+    pub fn with_env(mut self) -> Result<Self, String> {
+        if self.ignore_case {
+            return Ok(self);
+        }
+
+        self.ignore_case = env_flag(IGNORE_CASE_ENV_VAR)?;
+        Ok(self)
+    }
+}
+
+fn env_flag(name: &str) -> Result<bool, String> {
+    let Some(value) = std::env::var_os(name) else {
+        return Ok(false);
+    };
+
+    let value = value
+        .into_string()
+        .map_err(|_| format!("{name} must be valid unicode"))?;
+    parse_env_flag(name, &value)
+}
+
+fn parse_env_flag(name: &str, value: &str) -> Result<bool, String> {
+    let normalized = value.trim().to_ascii_lowercase();
+
+    match normalized.as_str() {
+        "" | "0" | "false" | "no" | "off" => Ok(false),
+        "1" | "true" | "yes" | "on" => Ok(true),
+        _ => Err(format!(
+            "{name} must be one of: 1, 0, true, false, yes, no, on, off"
+        )),
+    }
 }
 
 fn file_date(path: &Path) -> Option<&str> {
@@ -345,7 +393,8 @@ fn civil_from_days(days: i64) -> (i32, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::{
-        SearchArgs, resolve_folder_filter, search_logs, search_logs_with_today, shift_date,
+        IGNORE_CASE_ENV_VAR, SearchArgs, parse_env_flag, resolve_folder_filter, search_logs,
+        search_logs_with_today, shift_date,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -376,6 +425,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
         )
@@ -408,6 +458,7 @@ mod tests {
                 since_days: None,
                 limit: Some(1),
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
         )
@@ -444,6 +495,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
             Some("2026-04-19"),
@@ -486,6 +538,7 @@ mod tests {
                 since_days: Some(1),
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
             Some("2026-04-19"),
@@ -519,6 +572,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
         )
@@ -550,6 +604,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work/project"),
         )
@@ -582,6 +637,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
         )
@@ -628,6 +684,7 @@ mod tests {
                 since_days: None,
                 limit: None,
                 json: false,
+                ignore_case: false,
             },
             Path::new("/work"),
             None,
@@ -650,6 +707,55 @@ mod tests {
         assert_eq!(
             shift_date("2024-03-01", -1).expect("date shift should work"),
             "2024-02-29"
+        );
+    }
+
+    #[test]
+    fn search_logs_can_ignore_case_for_query_and_folder() {
+        let temp_dir = make_temp_dir("search-ignore-case");
+        let log_dir = temp_dir.join(".logs");
+        fs::create_dir_all(&log_dir).expect("log dir should exist");
+        fs::write(
+            log_dir.join("bash-history-2026-04-19.log"),
+            "2026-04-19T10:00:00+0100\t/work/ProjectAlpha\tCargo Test\n2026-04-19T11:00:00+0100\t/work/other\trustc main.rs\n",
+        )
+        .expect("log should be written");
+
+        let entries = search_logs(
+            &log_dir,
+            &SearchArgs {
+                query: Some(String::from("cargo")),
+                folder: Some(PathBuf::from("projectalpha")),
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+                ignore_case: true,
+            },
+            Path::new("/work"),
+        )
+        .expect("search should succeed");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].command, "Cargo Test");
+
+        cleanup(&temp_dir);
+    }
+
+    #[test]
+    fn parse_env_flag_accepts_true_values() {
+        assert!(parse_env_flag(IGNORE_CASE_ENV_VAR, "yes").expect("env should parse"));
+        assert!(parse_env_flag(IGNORE_CASE_ENV_VAR, "TRUE").expect("env should parse"));
+    }
+
+    #[test]
+    fn parse_env_flag_rejects_invalid_values() {
+        let result = parse_env_flag(IGNORE_CASE_ENV_VAR, "maybe");
+        assert_eq!(
+            result,
+            Err(String::from(
+                "HY_IGNORE_CASE must be one of: 1, 0, true, false, yes, no, on, off"
+            ))
         );
     }
 
