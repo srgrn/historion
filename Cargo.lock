@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "hy"
+name = "historion"
 version = "0.1.0"

@@ -1,6 +1,18 @@
 [package]
-name = "hy"
+name = "historion"
 version = "0.1.0"
 edition = "2024"
+description = "Record and search shell history stored in plain text logs"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/srgrn/historion"
+homepage = "https://github.com/srgrn/historion"
+documentation = "https://docs.rs/historion"
+keywords = ["cli", "history", "shell", "search"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "hy"
+path = "src/main.rs"
 
 [dependencies]
