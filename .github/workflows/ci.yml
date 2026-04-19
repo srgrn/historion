@@ -55,16 +55,6 @@ jobs:
           - stable
     steps:
       - uses: actions/checkout@v6
-      - name: Set "--features" flag value
-        id: set-features-flag-value
-        shell: bash
-        run: |
-          if [ -n "${{ matrix.platform.features }}" ]; then
-              echo "features=${{ matrix.platform.features }}" >> "$GITHUB_OUTPUT"
-          else 
-              echo "features=default" >> "$GITHUB_OUTPUT"
-          fi
-          cat "$GITHUB_OUTPUT"
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
@@ -72,7 +62,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           toolchain: ${{ matrix.toolchain }}
           args:
-            "--locked --release --features ${{ steps.set-features-flag-value.outputs.features }}"
+            "--locked --release"
           strip: true
           cross-version: ${{ matrix.platform.cross-version }}
       - name: Run tests
@@ -82,6 +72,6 @@ jobs:
           target: ${{ matrix.platform.target }}
           toolchain: ${{ matrix.toolchain }}
           args:
-            "--locked --release  --features ${{ steps.set-features-flag-value.outputs.features }}"
+            "--locked --release"
         if: ${{ !matrix.platform.skip-tests }}
 
