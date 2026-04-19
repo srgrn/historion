@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-13
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Show Rust toolchain
+        run: rustc --version && cargo --version
+
+      - name: Run tests
+        run: cargo test --locked
+

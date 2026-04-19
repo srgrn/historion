@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ensure-release:
+    name: Ensure GitHub release exists
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Create release if needed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag
+
+  build-and-upload:
+    name: Build and upload (${{ matrix.platform }})
+    needs: ensure-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            binary_name: hy
+            archive_name: hy-${{ github.ref_name }}-linux-x86_64.tar.gz
+          - os: windows-latest
+            platform: windows-x86_64
+            binary_name: hy.exe
+            archive_name: hy-${{ github.ref_name }}-windows-x86_64.zip
+          - os: macos-13
+            platform: macos-x86_64
+            binary_name: hy
+            archive_name: hy-${{ github.ref_name }}-macos-x86_64.tar.gz
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Derive release version from tag
+        id: version
+        shell: bash
+        run: |
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cargo version to match tag
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $version = $env:RELEASE_VERSION
+
+          $cargoToml = Get-Content Cargo.toml -Raw
+          $packagePattern = '(?ms)(^\[package\]\s.*?^version\s*=\s*")[^"]+(")'
+          if ($cargoToml -notmatch $packagePattern) {
+            throw 'Could not locate package version in Cargo.toml'
+          }
+          $updatedToml = [regex]::Replace($cargoToml, $packagePattern, "`$1$version`$2", 1)
+          [System.IO.File]::WriteAllText((Resolve-Path Cargo.toml), $updatedToml)
+
+          $cargoLock = Get-Content Cargo.lock -Raw
+          $lockPattern = '(?ms)(\[\[package\]\]\s*name = "historion"\s*version = ")[^"]+(")'
+          if ($cargoLock -notmatch $lockPattern) {
+            throw 'Could not locate historion package version in Cargo.lock'
+          }
+          $updatedLock = [regex]::Replace($cargoLock, $lockPattern, "`$1$version`$2", 1)
+          [System.IO.File]::WriteAllText((Resolve-Path Cargo.lock), $updatedLock)
+
+      - name: Show Rust toolchain
+        run: rustc --version && cargo --version
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package release asset
+        id: package
+        shell: pwsh
+        env:
+          ARCHIVE_NAME: ${{ matrix.archive_name }}
+          BINARY_NAME: ${{ matrix.binary_name }}
+        run: |
+          $dist = Join-Path $PWD 'dist'
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+
+          $binaryPath = Join-Path $PWD "target/release/$env:BINARY_NAME"
+          if (-not (Test-Path $binaryPath)) {
+            throw "Built binary not found at $binaryPath"
+          }
+
+          $stagedBinary = Join-Path $dist $env:BINARY_NAME
+          Copy-Item $binaryPath $stagedBinary -Force
+
+          $archivePath = Join-Path $dist $env:ARCHIVE_NAME
+          if ($env:ARCHIVE_NAME.EndsWith('.zip')) {
+            Compress-Archive -Path $stagedBinary -DestinationPath $archivePath -Force
+          } else {
+            tar -czf $archivePath -C $dist $env:BINARY_NAME
+          }
+
+          "archive_path=$archivePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload asset to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
+        run: gh release upload "$TAG" "$ARCHIVE_PATH" --clobber
+

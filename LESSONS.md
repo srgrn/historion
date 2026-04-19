@@ -74,3 +74,5 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - `README.md` should describe shipped behavior and setup, not stale planning notes.
 - `LESSONS.md` should record decisions that future tasks should not rediscover.
 - Keep the crate split into `lib.rs` plus a thin `main.rs` so command parsing and behavior remain easy to unit test.
+- GitHub Actions should keep CI simple on push and treat `v*.*.*` tags as release triggers.
+- The release workflow should update the checked-out Cargo version to match the tag before building assets, without relying on the committed manifest version already being bumped.
