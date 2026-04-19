@@ -76,3 +76,4 @@ This file is a shared memory for implementation tasks. It should capture stable 
 - Keep the crate split into `lib.rs` plus a thin `main.rs` so command parsing and behavior remain easy to unit test.
 - GitHub Actions should keep CI simple on push and treat `v*.*.*` tags as release triggers.
 - The release workflow should update the checked-out Cargo version to match the tag before building assets, without relying on the committed manifest version already being bumped.
+- Avoid PowerShell regex replacement strings for version rewrites in release automation; numeric versions can collide with `$1`, `$2`, etc. backreferences and corrupt the manifest.

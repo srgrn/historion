@@ -57,6 +57,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
       - name: Derive release version from tag
         id: version
         shell: bash
@@ -65,27 +70,59 @@ jobs:
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Update Cargo version to match tag
-        shell: pwsh
+        shell: bash
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $version = $env:RELEASE_VERSION
+          python <<'PY'
+          import os
+          from pathlib import Path
 
-          $cargoToml = Get-Content Cargo.toml -Raw
-          $packagePattern = '(?ms)(^\[package\]\s.*?^version\s*=\s*")[^"]+(")'
-          if ($cargoToml -notmatch $packagePattern) {
-            throw 'Could not locate package version in Cargo.toml'
-          }
-          $updatedToml = [regex]::Replace($cargoToml, $packagePattern, "`$1$version`$2", 1)
-          [System.IO.File]::WriteAllText((Resolve-Path Cargo.toml), $updatedToml)
+          version = os.environ["RELEASE_VERSION"]
 
-          $cargoLock = Get-Content Cargo.lock -Raw
-          $lockPattern = '(?ms)(\[\[package\]\]\s*name = "historion"\s*version = ")[^"]+(")'
-          if ($cargoLock -notmatch $lockPattern) {
-            throw 'Could not locate historion package version in Cargo.lock'
-          }
-          $updatedLock = [regex]::Replace($cargoLock, $lockPattern, "`$1$version`$2", 1)
-          [System.IO.File]::WriteAllText((Resolve-Path Cargo.lock), $updatedLock)
+          cargo_toml_path = Path("Cargo.toml")
+          cargo_toml_lines = cargo_toml_path.read_text().splitlines()
+          in_package = False
+          updated_toml = False
+
+          for index, line in enumerate(cargo_toml_lines):
+              if line == "[package]":
+                  in_package = True
+                  continue
+              if in_package and line.startswith("["):
+                  in_package = False
+              if in_package and line.startswith("version = "):
+                  cargo_toml_lines[index] = f'version = "{version}"'
+                  updated_toml = True
+                  break
+
+          if not updated_toml:
+              raise SystemExit("Could not locate package version in Cargo.toml")
+
+          cargo_toml_path.write_text("\n".join(cargo_toml_lines) + "\n")
+
+          cargo_lock_path = Path("Cargo.lock")
+          cargo_lock_lines = cargo_lock_path.read_text().splitlines()
+          in_historion_package = False
+          updated_lock = False
+
+          for index, line in enumerate(cargo_lock_lines):
+              if line == "[[package]]":
+                  in_historion_package = False
+                  continue
+              if line == 'name = "historion"':
+                  in_historion_package = True
+                  continue
+              if in_historion_package and line.startswith("version = "):
+                  cargo_lock_lines[index] = f'version = "{version}"'
+                  updated_lock = True
+                  break
+
+          if not updated_lock:
+              raise SystemExit("Could not locate historion package version in Cargo.lock")
+
+          cargo_lock_path.write_text("\n".join(cargo_lock_lines) + "\n")
+          PY
 
       - name: Show Rust toolchain
         run: rustc --version && cargo --version
@@ -126,4 +163,3 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
         run: gh release upload "$TAG" "$ARCHIVE_PATH" --clobber
-
