@@ -20,7 +20,7 @@ pub struct SearchArgs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ResolvedSearch {
     query: Option<String>,
-    folder: Option<PathBuf>,
+    folder: Option<String>,
     earliest_date: Option<String>,
     latest_date: Option<String>,
 }
@@ -186,21 +186,38 @@ fn matches_query(entry: &HistoryEntry, query: Option<&str>) -> bool {
     }
 }
 
-fn matches_folder(entry: &HistoryEntry, folder: Option<&Path>) -> bool {
+fn matches_folder(entry: &HistoryEntry, folder: Option<&str>) -> bool {
     match folder {
-        Some(folder) => entry.cwd.starts_with(folder),
+        Some(folder) => entry.cwd.to_string_lossy().contains(folder),
         None => true,
     }
 }
 
-pub fn resolve_folder_filter(folder: Option<&Path>, cwd: &Path) -> Option<PathBuf> {
+pub fn resolve_folder_filter(folder: Option<&Path>, cwd: &Path) -> Option<String> {
     folder.map(|folder| {
-        if folder.is_absolute() {
-            normalize_path(folder)
+        if is_path_like(folder) {
+            if folder.is_absolute() {
+                normalize_path(folder).to_string_lossy().into_owned()
+            } else {
+                normalize_path(&cwd.join(folder))
+                    .to_string_lossy()
+                    .into_owned()
+            }
         } else {
-            normalize_path(&cwd.join(folder))
+            folder.to_string_lossy().into_owned()
         }
     })
+}
+
+fn is_path_like(path: &Path) -> bool {
+    path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::RootDir | Component::CurDir | Component::ParentDir
+            )
+        })
+        || path.to_string_lossy().contains(std::path::MAIN_SEPARATOR)
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
@@ -546,18 +563,53 @@ mod tests {
     }
 
     #[test]
+    fn search_logs_filter_by_partial_folder_name() {
+        let temp_dir = make_temp_dir("search-folder-partial");
+        let log_dir = temp_dir.join(".logs");
+        fs::create_dir_all(&log_dir).expect("log dir should exist");
+        fs::write(
+            log_dir.join("bash-history-2026-04-19.log"),
+            "2026-04-19T09:00:00+0100\t/work/project-alpha\tcargo check\n2026-04-19T10:00:00+0100\t/work/project-beta/src\trustc main.rs\n2026-04-19T11:00:00+0100\t/work/other\tcargo test\n",
+        )
+        .expect("log should be written");
+
+        let entries = search_logs(
+            &log_dir,
+            &SearchArgs {
+                query: None,
+                folder: Some(PathBuf::from("project-b")),
+                today: false,
+                since_days: None,
+                limit: None,
+                json: false,
+            },
+            Path::new("/work"),
+        )
+        .expect("search should succeed");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].cwd, PathBuf::from("/work/project-beta/src"));
+
+        cleanup(&temp_dir);
+    }
+
+    #[test]
     fn resolve_folder_filter_expands_relative_paths() {
         assert_eq!(
             resolve_folder_filter(Some(Path::new(".")), Path::new("/work/project")),
-            Some(PathBuf::from("/work/project"))
+            Some(String::from("/work/project"))
         );
         assert_eq!(
             resolve_folder_filter(Some(Path::new("src/../tests")), Path::new("/work/project")),
-            Some(PathBuf::from("/work/project/tests"))
+            Some(String::from("/work/project/tests"))
         );
         assert_eq!(
             resolve_folder_filter(Some(Path::new("/tmp/demo")), Path::new("/work/project")),
-            Some(PathBuf::from("/tmp/demo"))
+            Some(String::from("/tmp/demo"))
+        );
+        assert_eq!(
+            resolve_folder_filter(Some(Path::new("src")), Path::new("/work/project")),
+            Some(String::from("src"))
         );
     }
 

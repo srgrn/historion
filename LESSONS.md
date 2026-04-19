@@ -42,7 +42,7 @@ This file is a shared memory for implementation tasks. It should capture stable 
 
 - `hy <query>` should search command text by substring in v1.
 - `hy --folder <path>` should resolve relative paths from the caller's current working directory.
-- Folder matches should be recursive prefix matches by default.
+- Path-like folder filters should expand from the caller's current directory, but plain values such as `src` should work as substring matches against the logged cwd.
 - `hy --folder .` should mean "current directory and descendants".
 - Search currently skips malformed log lines instead of failing the whole command.
 - Search results should come back newest first by file date and then reverse line order within each file.

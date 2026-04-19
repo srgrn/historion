@@ -8,7 +8,7 @@ It is meant to replace ad-hoc `precmd` or `PROMPT_COMMAND` snippets with a stabl
 
 - Records shell commands into daily text files such as `~/.logs/bash-history-2026-04-19.log`
 - Searches command text with `hy <query>`
-- Filters by working directory tree with `hy --folder <path>`
+- Filters by working directory using path expansion or partial matches with `hy --folder <path>`
 - Supports `--today`, `--since <days>`, `--limit <n>`, and `--json`
 - Installs managed shell hooks with `hy install bash` or `hy install zsh`
 - Reads the newer escaped-TSV format exactly and older space-delimited logs on a best-effort basis
@@ -63,6 +63,12 @@ Search only within the current directory tree:
 
 ```bash
 hy --folder .
+```
+
+Search by a partial folder name anywhere in the logged cwd:
+
+```bash
+hy --folder src
 ```
 
 Combine text search and folder filtering:
