@@ -44,10 +44,10 @@ jobs:
             platform: linux-x86_64
             binary_name: hy
             archive_name: hy-${{ github.ref_name }}-linux-x86_64.tar.gz
-          - os: windows-latest
-            platform: windows-x86_64
-            binary_name: hy.exe
-            archive_name: hy-${{ github.ref_name }}-windows-x86_64.zip
+          # - os: windows-latest
+          #   platform: windows-x86_64
+          #   binary_name: hy.exe
+          #   archive_name: hy-${{ github.ref_name }}-windows-x86_64.zip
           - os: macos-13
             platform: macos-x86_64
             binary_name: hy
